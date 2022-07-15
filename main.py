@@ -1,105 +1,104 @@
-import re
-
-from selenium import webdriver
-from bs4 import BeautifulSoup
+from fastapi import FastAPI, Path, Query, HTTPException, status
+from typing import Optional
+from pydantic import BaseModel
 import time
 
-def instaSearch(keyword):
-    url = 'https://www.instagram.com/explore/tags/'+keyword
-    return url
+from fastapi.responses import RedirectResponse
 
-def getContent(driver):
-    html = driver.page_source
-    soup = BeautifulSoup(html, 'html.parser')
+app = FastAPI()
 
-    try:
-        content = soup.select('div.M0dxS')[0].text
-    except:
-        content = ''
+class Item(BaseModel):
+	name: str
+	price: float
+	brand: Optional[str] = None
 
-    tags = re.findall(r'#[^\s#,\\]+', content)
+inventory = {}
+'''{
+	1: {
+		"name": "Milk",
+		"price": 3.99,
+		"brand": "Regular"
+	},
+	2: {
+		"name": "Chocolate",
+		"price": 2.99,
+		"brand": "No Brand"
+	}
+}'''
 
-    date = soup.select('time._1o9PC')[0]['datetime'][:10]
+# redirects to /docs page 그러나 페이지 상 메세지 띄우는 법 아직 모름
+@app.get("/")
+def home():
+	print("This page contains no message, will redirect")
+	time.sleep(5)
+	response = RedirectResponse(url='/docs')
+	return response
+	#return {"This is a home page, move to http://127.0.0.1/docs"}
 
-    try:
-        like = soup.select('div._7UhW9.xLCgt.qyrsm.KV-D4.fDxYl.T0kll')[0].text
-    except:
-        like = 0
+'''
+@app.get("/redirect")
+async def redirect():
+    response = RedirectResponse(url='/redirected')
+    return response
 
-    try:
-        place = soup.select('div.M30cS')[0].text
-    except:
-        place = ''
+@app.get("/redirected")
+async def redirected():
+    return {"message": "you've been redirected"}
+'''
 
-    data = [content, date, like, place, tags]
+@app.get("/get-item/{item_id}")
+def get_item(item_id: int = Path(None, description="The ID of the item you'd like to view", gt=0, lt=3)):
+	return inventory[item_id]
 
-    print(data)
+@app.get("/get-by-name")
+def get_item(*, name: Optional[str] = None, test: int):
+	for item_id in inventory:
+		if inventory[item_id].name == name:
+			return inventory[item_id]
 
-driver = webdriver.Chrome('c:/mydriver/chromedriver.exe')
-url = 'http://www.instagram.com'
-driver.get(url)
-time.sleep(3)
+	raise HTTPException(status_code=404, detail="Item name not found.")
+	# return {"Data": "Not Found"}
 
-driver.find_elements_by_css_selector('input._2hvTZ.pexuQ.zyHYP')
+@app.post("/create-item/{item_id}")
+def create_item(item_id: int, item: Item):
+	if item_id in inventory:
+		raise HTTPException(status_code=404, detail="Item ID already exists.")
+		# return{"Error: Item ID already exists."}
 
-ID = input('ID를 입력하세요: ')
-inputid = driver.find_elements_by_css_selector('input._2hvTZ.pexuQ.zyHYP')[0]
-inputid.clear()
-inputid.send_keys(ID)
+	inventory[item_id] = item
+	return inventory[item_id]
 
-password = input('비밀번호를 입력하세요: ')
-inputPw = driver.find_elements_by_css_selector('input._2hvTZ.pexuQ.zyHYP')[1]
-inputPw.clear()
-inputPw.send_keys(password)
+# update(put) 해당하는 function 정상 작동 되지 않음 더 찾아볼 것
+@app.put("/update-item/{item_id}")
+def update_item(item_id: int, item: Item):
+	if item_id not in inventory:
+		raise HTTPException(status_code=404, detail="Item ID does not exist.")
+		# return {"Error": "Item ID does not exist."}
 
-inputPw.submit()
-time.sleep(2)
+	if item.name != None:
+		inventory[item_id].name = item.name
+	if item.price != None:
+		inventory[item_id].price = item.price
+	if item.brand != None:
+		inventory[item_id].brand = item.brand
 
-word = 'ootd'
-url = instaSearch(word)
-driver.get(url)
+	return inventory[item_id]
 
-first = driver.find_element_by_css_selector('div._9AhH0')
-first.click()
-time.sleep(2)
+@app.delete("/delete-item")
+def delete_item(item_id: int = Query(..., description="The ID of the item you'd like to delete.")):
+	if item_id not in inventory:
+		raise HTTPException(status_code=404, detail="Item ID does not exist.")
+		# return {"Error": "ID does not exist."}
 
-getContent(driver)
-
-word = 'art'
-url = instaSearch(word)
-driver.get(url)
-
-first = driver.find_element_by_css_selector('div._9AhH0')
-first.click()
-time.sleep(2)
-
-getContent(driver)
-
-word = '협찬'
-url = instaSearch(word)
-driver.get(url)
-
-first = driver.find_element_by_css_selector('div._9AhH0')
-first.click()
-time.sleep(2)
-
-getContent(driver)
-
-word = '광고'
-url = instaSearch(word)
-driver.get(url)
-
-first = driver.find_element_by_css_selector('div._9AhH0')
-first.click()
-time.sleep(2)
-
-getContent(driver)
-
-second = driver.find_element_by_css_selector('div.QBdPU')
-second.click()
-time.sleep(2)
-
-getContent(driver)
+	del inventory[item_id]
 
 
-#getContent(first)
+'''
+@app.get("/")
+def home():
+	return {"Data": "Testing"}
+
+@app.get("/about")
+def about():
+	return {"Data": "About"}
+'''
